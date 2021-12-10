@@ -1,0 +1,6 @@
+[submodule "src/third-party/cxxopts"]
+	path = src/third-party/cxxopts
+	url = git@github.com:jarro2783/cxxopts.git
+[submodule "src/third-party/fmt"]
+	path = src/third-party/fmt
+	url = git@github.com:fmtlib/fmt.git
