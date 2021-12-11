@@ -77,7 +77,7 @@ unsigned char *generate_key(int length) {
 int encrypt(std::filesystem::path const &from, std::filesystem::path const &to) {
     std::cout << fmt::format("File paths from = {} to = {}\n", from.string(), to.string()) << std::flush;
     FILE *from_file = std::fopen(from.c_str(), "rb");
-    FILE *to_file = std::fopen(to.c_str(), "rwb");
+    FILE *to_file = std::fopen(to.c_str(), "wb");
     if (!from_file) {
         std::perror(fmt::format("File opening failed {} or {}", from.string()).c_str());
         return EXIT_FAILURE;
@@ -121,8 +121,8 @@ int encrypt(std::filesystem::path const &from, std::filesystem::path const &to) 
     fwrite(outbuf, 1, outlen, to_file);
     EVP_CIPHER_CTX_cleanup(ctx);
 
-    fseek(to_file, 0, SEEK_SET);
-    fseek(from_file, 0, SEEK_SET);
+    fclose(from_file);
+    fclose(to_file);
     free((void *) key);
     free((void *) iv);
     return 0;
