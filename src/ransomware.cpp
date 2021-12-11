@@ -8,6 +8,7 @@
 //#include <openssl/aes.h>
 
 #include <fmt/format.h>
+#include <fstream>
 
 Encryptor::Encryptor(std::filesystem::path const &rootPath)
         : rootPath_(rootPath) {
@@ -18,16 +19,17 @@ Encryptor::Encryptor(std::filesystem::path const &rootPath)
 
     encryptedDir_ = rootPath;
     encryptedDir_ /= std::filesystem::path(ENCRYPTED_DIR_NAME);
-    std::cout << fmt::format("Encrypted dir path: {}\n", encryptedDir_.string());
+    std::cout << fmt::format("Encrypted dir path: {}\n", encryptedDir_.string()) << std::flush;
 
     if (std::filesystem::exists(encryptedDir_)) {
-        throw std::runtime_error(fmt::format("{} already exists", std::filesystem::absolute(encryptedDir_).string()));
+        std::filesystem::remove_all(encryptedDir_);
+//        throw std::runtime_error(fmt::format("{} already exists", std::filesystem::absolute(encryptedDir_).string()));
     }
 
     ProcessDirectory(rootEntry);
 
     for (auto &file: regularFiles_) {
-        std::cout << fmt::format("Found regular file for encryption: {}\n", file.string());
+        std::cout << fmt::format("Found regular file for encryption: {}\n", file.string()) << std::flush;
     }
 
     std::filesystem::create_directory(encryptedDir_);
@@ -53,12 +55,12 @@ void Encryptor::Encrypt() {
         EncryptRegularFile(filePath);
     }
 
-    std::cout << "Encryption finished\n";
+    std::cout << "Encryption finished\n" << std::flush;
 }
 
 unsigned char *generate_key(int length) {
     static char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,.-#@$%&(){};'?!";
-    auto *randomString = static_cast<unsigned char *>(malloc(sizeof(char) * (length + 1)));;
+    auto *randomString = static_cast<unsigned char *>(calloc(length + 1, sizeof(char)));
     int key;
 
     if (randomString) {
@@ -72,11 +74,16 @@ unsigned char *generate_key(int length) {
     return randomString;
 }
 
-int encrypt(std::filesystem::path const &filePath) {
-    std::cout << fmt::format("Encrypted file path: {}\n", filePath.string());
-    FILE *file = std::fopen(filePath.c_str(), "rb");
-    if (!file) {
-        std::perror(fmt::format("File opening failed {}", filePath.string()).c_str());
+int encrypt(std::filesystem::path const &from, std::filesystem::path const &to) {
+    std::cout << fmt::format("File paths from = {} to = {}\n", from.string(), to.string()) << std::flush;
+    FILE *from_file = std::fopen(from.c_str(), "rb");
+    FILE *to_file = std::fopen(to.c_str(), "rwb");
+    if (!from_file) {
+        std::perror(fmt::format("File opening failed {} or {}", from.string()).c_str());
+        return EXIT_FAILURE;
+    }
+    if (!to_file) {
+        std::perror(fmt::format("File opening failed {}", to.string()).c_str());
         return EXIT_FAILURE;
     }
 
@@ -84,8 +91,8 @@ int encrypt(std::filesystem::path const &filePath) {
     const unsigned char *key = generate_key(32);
 
     int chunk_size = 512;
-    unsigned char inbuf[chunk_size];
-    unsigned char outbuf[chunk_size + EVP_MAX_BLOCK_LENGTH];
+    auto *inbuf = static_cast<unsigned char *>(calloc(chunk_size, sizeof(unsigned char)));
+    auto *outbuf = static_cast<unsigned char *>(calloc(chunk_size + EVP_MAX_BLOCK_LENGTH, sizeof(unsigned char)));
     int inlen;
     int outlen;
 
@@ -95,8 +102,9 @@ int encrypt(std::filesystem::path const &filePath) {
     EVP_CipherInit_ex(ctx, EVP_bf_cbc(), nullptr, nullptr, nullptr, 1); // 1 encrypt - 0 decrypt
     EVP_CIPHER_CTX_set_key_length(ctx, 16);
     EVP_CipherInit_ex(ctx, nullptr, nullptr, key, iv, 1);
+
     while (true) {
-        inlen = fread(inbuf, 1, chunk_size, file);
+        inlen = fread(inbuf, 1, chunk_size, from_file);
         if (inlen <= 0) {
             break;
         }
@@ -104,30 +112,32 @@ int encrypt(std::filesystem::path const &filePath) {
             EVP_CIPHER_CTX_cleanup(ctx);
             return EXIT_FAILURE;
         }
-        fwrite(outbuf, 1, outlen, file);
+        fwrite(outbuf, 1, outlen, to_file);
     }
     if (!EVP_CipherFinal_ex(ctx, outbuf, &outlen)) {
         EVP_CIPHER_CTX_cleanup(ctx);
         return EXIT_FAILURE;
     }
-    fwrite(outbuf, 1, outlen, file);
+    fwrite(outbuf, 1, outlen, to_file);
     EVP_CIPHER_CTX_cleanup(ctx);
 
-    rewind(file);
+    fseek(to_file, 0, SEEK_SET);
+    fseek(from_file, 0, SEEK_SET);
     free((void *) key);
     free((void *) iv);
     return 0;
 }
 
 void Encryptor::EncryptRegularFile(std::filesystem::path const &filePath) {
-    std::cout << fmt::format("Processing regular file: {}\n", filePath.string());
+    std::cout << fmt::format("Processing regular file: {}\n", filePath.string()) << std::flush;
     auto encryptedPath = encryptedDir_;
     encryptedPath /= filePath.lexically_relative(rootPath_);
     encryptedPath += ".encrypted";
 
-    std::filesystem::copy(filePath, encryptedPath);
-    encrypt(encryptedPath);
+//    std::filesystem::copy(filePath, encryptedPath);
+    std::ofstream outfile(encryptedPath);
+    encrypt(filePath, encryptedPath);
     // TODO: actually encrypt
 
-    std::cout << fmt::format("Encrypted to: {}\n", encryptedPath.string());
+    std::cout << fmt::format("Encrypted to: {}\n", encryptedPath.string()) << std::flush;
 }

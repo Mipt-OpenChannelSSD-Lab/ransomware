@@ -21,7 +21,7 @@ int main(int const argc, char const *const argv[])
     }
 
     auto const rootPath = result["root"].as<std::string>();
-    std::cout << fmt::format("Root directory for encryption: {}\n", rootPath);
+    std::cout << fmt::format("Root directory for encryption: {}\n", rootPath) << std::flush;
 
     try {
         auto encryptor = Encryptor(rootPath);
