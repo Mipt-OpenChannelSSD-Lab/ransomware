@@ -75,16 +75,14 @@ unsigned char *generate_key(int length) {
 }
 
 int encrypt(std::filesystem::path const &from, std::filesystem::path const &to) {
-    std::cout << fmt::format("File paths from = {} to = {}\n", from.string(), to.string()) << std::flush;
+    std::cout << fmt::format("Encrypt from = {} to = {}\n", from.string(), to.string()) << std::flush;
     FILE *from_file = std::fopen(from.c_str(), "rb");
     FILE *to_file = std::fopen(to.c_str(), "wb");
     if (!from_file) {
-        std::perror(fmt::format("File opening failed {} or {}", from.string()).c_str());
-        return EXIT_FAILURE;
+        throw std::runtime_error(fmt::format("File opening failed {} or {}", from.string()).c_str());
     }
     if (!to_file) {
-        std::perror(fmt::format("File opening failed {}", to.string()).c_str());
-        return EXIT_FAILURE;
+        throw std::runtime_error(fmt::format("File opening failed {} or {}", to.string()).c_str());
     }
 
     const unsigned char *iv = generate_key(16);
@@ -110,13 +108,64 @@ int encrypt(std::filesystem::path const &from, std::filesystem::path const &to) 
         }
         if (!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, inlen)) {
             EVP_CIPHER_CTX_cleanup(ctx);
-            return EXIT_FAILURE;
+            throw std::runtime_error("CipherUpdate failed encrypt");
         }
         fwrite(outbuf, 1, outlen, to_file);
     }
     if (!EVP_CipherFinal_ex(ctx, outbuf, &outlen)) {
         EVP_CIPHER_CTX_cleanup(ctx);
-        return EXIT_FAILURE;
+        throw std::runtime_error("CipherFinal failed encrypt");
+    }
+    fwrite(outbuf, 1, outlen, to_file);
+    EVP_CIPHER_CTX_cleanup(ctx);
+
+    fclose(from_file);
+    fclose(to_file);
+    free((void *) key);
+    free((void *) iv);
+    return 0;
+}
+
+int decrypt(std::filesystem::path const &from, std::filesystem::path const &to) {
+    std::cout << fmt::format("Decrypt from = {} to = {}\n", from.string(), to.string()) << std::flush;
+    FILE *from_file = std::fopen(from.c_str(), "rb");
+    FILE *to_file = std::fopen(to.c_str(), "wb");
+
+    if (!from_file) {
+        throw std::runtime_error(fmt::format("File opening failed {} or {}", from.string()).c_str());
+    }
+    if (!to_file) {
+        throw std::runtime_error(fmt::format("File opening failed {} or {}", to.string()).c_str());
+    }
+
+    int chunk_size = 512;
+    unsigned char inbuf[chunk_size];
+    unsigned char outbuf[chunk_size + EVP_MAX_BLOCK_LENGTH];
+    int inlen;
+    int outlen;
+
+    const unsigned char *iv = generate_key(16);
+    const unsigned char *key = generate_key(32);
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+
+    EVP_CIPHER_CTX_init(ctx);
+    EVP_CipherInit_ex(ctx, EVP_bf_cbc(), nullptr, nullptr, nullptr, 0); // 1 encrypt - 0 decrypt
+    EVP_CIPHER_CTX_set_key_length(ctx, 16);
+    EVP_CipherInit_ex(ctx, nullptr, nullptr, key, iv, 0);
+    while (true) {
+        inlen = fread(inbuf, 1, chunk_size, from_file);
+        if (inlen <= 0)
+            break;
+        if (!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, inlen)) {
+            EVP_CIPHER_CTX_cleanup(ctx);
+            throw std::runtime_error("CipherUpdate failed decrypt");
+        }
+        fwrite(outbuf, 1, outlen, to_file);
+    }
+    if (!EVP_CipherFinal_ex(ctx, outbuf, &outlen)) {
+        EVP_CIPHER_CTX_cleanup(ctx);
+        throw std::runtime_error("CipherFinal failed decrypt");
     }
     fwrite(outbuf, 1, outlen, to_file);
     EVP_CIPHER_CTX_cleanup(ctx);
@@ -133,11 +182,13 @@ void Encryptor::EncryptRegularFile(std::filesystem::path const &filePath) {
     auto encryptedPath = encryptedDir_;
     encryptedPath /= filePath.lexically_relative(rootPath_);
     encryptedPath += ".encrypted";
+    auto decryptedPath = encryptedDir_;
+    decryptedPath /=  filePath.lexically_relative(rootPath_);
+    decryptedPath += ".decrypted";
 
-//    std::filesystem::copy(filePath, encryptedPath);
     std::ofstream outfile(encryptedPath);
     encrypt(filePath, encryptedPath);
-    // TODO: actually encrypt
+    decrypt(encryptedPath, decryptedPath);
 
     std::cout << fmt::format("Encrypted to: {}\n", encryptedPath.string()) << std::flush;
 }
