@@ -11,8 +11,14 @@ $ cmake -S . -B build
 $ cmake --build build
 ```
 
-How to run:
+How to encrypt:
 ```shell
 $ echo "From ransomware directory"
 $ ./build/ransomware --root=#<root directory for encryption>#
+```
+
+How to decrypt:
+```shell
+$ echo "From ransomware directory"
+$ ./build/ransomware --root=#<root directory for decryption># -d
 ```

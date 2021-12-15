@@ -16,14 +16,18 @@ Encryptor::Encryptor(std::filesystem::path const &rootPath, bool decrypt)
         throw std::runtime_error(fmt::format("{} is not a directory", std::filesystem::absolute(rootPath).string()));
     }
 
-    if (decrypt_) {
-        return;
-    }
-
     auto keysPath = rootPath;
     keysPath /= KEYS_FILENAME;
 
-    if (std::filesystem::exists(keysPath)) {
+    bool keysFileExist = std::filesystem::exists(keysPath);
+
+    if (decrypt_ && keysFileExist) {
+        return;
+    } else if (decrypt) {
+        throw std::runtime_error(fmt::format("Decryption mode engaged, but {} does not exist", keysPath.string()));
+    }
+
+    if (keysFileExist) {
         throw std::runtime_error(fmt::format("{} already exists", keysPath.string()));
     }
 
